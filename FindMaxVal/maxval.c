@@ -15,7 +15,7 @@ int main(int argc,char **argv){
     Não modifique este trecho de código
     *************************************************************************************
     */
-	int *vetor, i, maior, tam;
+	int *vetor, i, maior, tam, localMaior;
 
     if ( argc  != 2)
     {
@@ -40,6 +40,7 @@ int main(int argc,char **argv){
 
 	wtime = omp_get_wtime();
 
+    // Preenchendo vetor
     #pragma omp parallel num_threads(T) shared(vetor) private(i, ini, end, threadNum)
     {
 
@@ -56,30 +57,51 @@ int main(int argc,char **argv){
 	// iniciando vetor e fixando o maior valor para validacao
 	for(i = ini; i < end; i++)
 		vetor[i] = 1;
-        int num = vetor[i];
     }
 
     #pragma omp barrier // Barreira de sincronização
+    
+
+	vetor[tam/2] = tam; // Inserindo maior valor na metade do vetor
+	maior = 0; // Inicializando um maior global
 
     int j;
-    
+    /*
     for(j = 0; j < tam; j++){
         printf("%d ", vetor[j]);
     }
+    */
+    omp_lock_t mylock;
+	omp_init_lock(&mylock);
+
+    // Buscando maior valor
+    #pragma omp parallel num_threads(T) shared(vetor, maior) private(i, ini, end, threadNum, localMaior)
+    {
     
-	vetor[tam/2] = tam;
-        
-	maior = vetor[0];
+    localMaior = 0;
 
-	#pragma omp parallel for num_threads(T) private(i) reduction (max: maior)
+    threadNum = omp_get_thread_num(); // Número de thread
 
-	for(i = 1; i < tam; i++)
+    ini = (tam/T) * threadNum; 
+     
+    if(threadNum == T-1){ // Tratamento para o resto, colocando na última thread
+        end = (tam/T)* (threadNum +1) + remainder;    
+    }else{
+        end = (tam/T)* (threadNum +1);
+    }
+
+	for(i = ini; i < end; i++)
 	{
-		if(vetor[i] > maior)
-			maior = vetor[i];
+		if(vetor[i] > localMaior)
+			localMaior = vetor[i];
+            //printf("\n%d %d", localMaior, threadNum);
+    }
+    omp_set_lock(&mylock);
+		if (localMaior > maior)
+			maior = localMaior;
+	omp_unset_lock(&mylock);
 	} // fim do for e da regiao paralela
-
-
+    
 	/*
 	*************************************************************************************
 	Não modifique este trecho de código
