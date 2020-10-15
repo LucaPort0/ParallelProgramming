@@ -1,11 +1,9 @@
 //Compile: make all
-//Run: ./est_desc < in.txt
+//Run: ./est_desc < in.txt ou make run (roda caso de teste padrao)
+
+//This program reads and return statistics of a matrix, each one in a row
 
 //Luca Porto - 9778943
-//Joao Pedro Hannauer - 9390486
-//Rodrigo Noventa - 9791243
-//Keith Tsukada Sasaki - 9293414
-//Bruno Mitsuo Homma - 9293605
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -157,9 +155,10 @@ int cmp(const void * a, const void * b){
 
 /* Funcao que calcula a mediana das colunas */
 void median(double **mat, double ***res, int l, int c){
-	int i, j, k;
-	double vec[l];
+	int i, j;
 	double med;
+
+	double *vec = (double*)malloc(sizeof(double)*l);
 
 	for(j = 0; j < c; j++){
 		for(i = 0; i < l; i++){
@@ -176,11 +175,57 @@ void median(double **mat, double ***res, int l, int c){
 			(*res)[2][j] = vec[(l-1)/2];
 		}
 	}
+
+	free(vec);
 }
+
+/* Função que calcula a moda das colunas */
+void mode(double **mat, double ***res, int l, int c){
+	int i, j, k, counter = 1, countMode = 1;
+	double mode, check;
+
+	double *vec = (double*)malloc(sizeof(double)*l);
+
+	for(j = 0; j < c; j++){ // Iteracao em cada coluna
+		for(i = 0; i < l; i++){
+			vec[i] = mat[i][j]; // Armazena coluna em um vetor
+		}
+		qsort(&vec[0], l, sizeof(double), cmp); // Ordena o vetor
+
+		check = vec[0];
+		mode = -1;
+
+		for(k = 1; k < l; k++){ // Iteracao na coluna
+			if(vec[k] == check){
+				counter++;
+			}else if(vec[k] != check && counter > 1){
+				if(counter > countMode){ // Se o numero de repeticoes atuais for maior que a geral
+					countMode = counter;
+					mode = check; // A moda recebe o numero sendo checado
+					counter = 1;
+					check = vec[k];
+				}else if(counter == countMode){ // Caso o numero de repeticoes for igual a moda nao é substituida
+					counter = 1;
+					check = vec[k];	
+				}
+			}else{
+				check = vec[k];
+			}
+		}
+		countMode = 1;
+		counter = 1;
+
+		(*res)[3][j] = mode; // Armazena as modas na matriz de resultados
+	}
+
+	free(vec);
+}
+
 int main(int argc,char **argv){
     int l, c; //Numero de linhas e colunas
     double **res = NULL, **mat = NULL; // Matrizes resultado e original
 	double *m = NULL, *v = NULL, *d = NULL; // Estatisticas
+	double wtime;
 
     scanf("%d %d", &l, &c); // Leitura de dimensões da matriz
 
@@ -190,8 +235,10 @@ int main(int argc,char **argv){
 
     mat = fillm(mat, l , c); // Preenchimento da matriz
 
+	wtime = omp_get_wtime(); // Inicializando contador de tempo
+
 	/* Parte paralelizada */
-	#pragma omp parallel num_threads(T), shared(res, mat)
+	#pragma omp parallel num_threads(T), shared(res)
 	{
 		#pragma omp single
 		{
@@ -212,10 +259,16 @@ int main(int argc,char **argv){
 
 			#pragma omp task
 			{median(mat, &res, l, c); // Calculo da mediana
+
+			#pragma omp task
+			{mode(mat, &res, l, c);} // Calculo da mediana
 }
-		} //Fim do Single
+		} 
 	} //Fim da região paralela
 
+	wtime = omp_get_wtime() - wtime;
+
+	//printf("%lf\n", wtime); // Tempo de execucao(descomentar)
     printMat(res, 7, c);
 	printf("\n");
 
